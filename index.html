@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>🔥 Steam卡密商城</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+
+body{
+margin:0;
+padding:0;
+font-family:'Roboto',sans-serif;
+background:#050505;
+overflow:hidden;
+color:#fff;
+}
+
+/* 动态背景 */
+canvas{
+position:fixed;
+top:0;
+left:0;
+z-index:-1;
+}
+
+/* 主盒子 */
+
+.box{
+width:360px;
+margin:80px auto;
+padding:30px;
+background:rgba(0,0,0,0.85);
+border-radius:20px;
+box-shadow:0 10px 40px rgba(0,0,0,0.9);
+text-align:center;
+backdrop-filter:blur(10px);
+}
+
+.box h2{
+margin-bottom:20px;
+}
+
+/* 输入框 */
+
+select,input{
+
+width:90%;
+padding:12px;
+margin:12px 0;
+border-radius:8px;
+border:none;
+font-size:16px;
+background:rgba(0,0,0,0.8);
+color:#fff;
+
+}
+
+/* 下拉选项 */
+
+select option{
+
+background:#000;
+color:#fff;
+
+}
+
+button{
+
+width:95%;
+padding:12px;
+background:#00c853;
+border:none;
+border-radius:8px;
+color:#fff;
+font-size:16px;
+cursor:pointer;
+
+}
+
+button:hover{
+
+background:#00e676;
+
+}
+
+/* 弹窗 */
+
+.popup{
+
+display:none;
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:rgba(0,0,0,0.9);
+justify-content:center;
+align-items:center;
+
+}
+
+.popup-box{
+
+background:#111;
+padding:25px;
+width:320px;
+border-radius:15px;
+text-align:center;
+position:relative;
+
+}
+
+.copy{
+
+background:#222;
+padding:10px;
+border-radius:6px;
+margin:10px 0;
+word-break:break-all;
+
+}
+
+#preview{
+
+width:100%;
+margin-top:10px;
+display:none;
+
+}
+
+.close-btn{
+
+position:absolute;
+top:10px;
+right:10px;
+background:red;
+border:none;
+color:#fff;
+padding:5px 10px;
+border-radius:6px;
+cursor:pointer;
+
+}
+
+.loading{
+
+display:none;
+margin-top:10px;
+
+}
+
+.success{
+
+display:none;
+color:#00e676;
+margin-top:10px;
+
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="box">
+
+<h2>🔥 Steam卡密商城</h2>
+
+<label>区域选择</label>
+
+<select id="region" onchange="updateFaceValues()">
+
+<option value="US">US</option>
+<option value="EU">EU</option>
+<option value="JP">JP</option>
+<option value="CN">CN</option>
+
+</select>
+
+<label>面额选择</label>
+
+<select id="faceValue" onchange="updatePrice()"></select>
+
+<label>数量</label>
+
+<input type="number" id="qty" value="1" min="1" onchange="updatePrice()">
+
+<p>💰 总价：<span id="total">0</span></p>
+
+<label>邮箱</label>
+
+<input type="email" id="email" placeholder="请输入邮箱">
+
+<button onclick="submitOrder()">立即下单</button>
+
+</div>
+
+
+<div class="popup" id="popup">
+
+<div class="popup-box">
+
+<button class="close-btn" onclick="closePopup()">X</button>
+
+<h3>TRC20-USDT支付</h3>
+
+<p id="orderInfo"></p>
+
+<p>订单号：<span id="orderId"></span></p>
+
+<p>支付地址：</p>
+
+<div class="copy" id="usdt">TW1HhfKDbbZ72i1mzPRz2ox5z5Se98YqxK</div>
+
+<button onclick="copyAddress()">复制地址</button>
+
+<hr>
+
+<input type="file" id="upload" accept="image/*" onchange="previewImage()">
+
+<img id="preview">
+
+<button onclick="submitProof()">提交截图</button>
+
+<div class="loading" id="loading">正在确认...</div>
+
+<div class="success" id="success">支付提交成功</div>
+
+</div>
+
+</div>
+
+
+<canvas id="bg"></canvas>
+
+<script>
+
+/* 汇率 */
+
+const rates={US:1,EU:1.08,JP:0.007,CN:0.15}
+
+const symbols={US:"$",EU:"€",JP:"¥",CN:"¥"}
+
+const faceOptions=[100,300,500,800,1000]
+
+const discount=0.66
+
+const region=document.getElementById("region")
+
+const faceValue=document.getElementById("faceValue")
+
+const qty=document.getElementById("qty")
+
+const total=document.getElementById("total")
+
+const email=document.getElementById("email")
+
+const popup=document.getElementById("popup")
+
+const orderInfo=document.getElementById("orderInfo")
+
+const orderId=document.getElementById("orderId")
+
+const usdt=document.getElementById("usdt")
+
+const upload=document.getElementById("upload")
+
+const preview=document.getElementById("preview")
+
+const loading=document.getElementById("loading")
+
+const success=document.getElementById("success")
+
+
+function updateFaceValues(){
+
+const reg=region.value
+
+const symbol=symbols[reg]
+
+faceValue.innerHTML=""
+
+faceOptions.forEach(v=>{
+
+faceValue.innerHTML+=`<option value="${v}">${symbol}${v}</option>`
+
+})
+
+updatePrice()
+
+}
+
+
+function updatePrice(){
+
+const reg=region.value
+
+const face=parseFloat(faceValue.value)
+
+const quantity=parseInt(qty.value)
+
+const usd=face*quantity*rates[reg]*discount
+
+total.innerText="$"+usd.toFixed(2)
+
+}
+
+
+function submitOrder(){
+
+if(!email.value.includes("@")){
+
+alert("请输入正确邮箱")
+
+return
+
+}
+
+const reg=region.value
+
+const face=faceValue.value
+
+const quantity=qty.value
+
+const usdPrice=total.innerText
+
+const orderNum="ORD"+Date.now()
+
+orderId.innerText=orderNum
+
+orderInfo.innerText=`区域:${reg}
+面额:${face}
+数量:${quantity}
+总价:${usdPrice}
+邮箱:${email.value}`
+
+popup.style.display="flex"
+
+}
+
+
+function closePopup(){
+
+popup.style.display="none"
+
+}
+
+
+function copyAddress(){
+
+navigator.clipboard.writeText(usdt.innerText)
+
+alert("地址已复制")
+
+}
+
+
+function previewImage(){
+
+const file=upload.files[0]
+
+if(file){
+
+const reader=new FileReader()
+
+reader.onload=e=>{
+
+preview.src=e.target.result
+
+preview.style.display="block"
+
+}
+
+reader.readAsDataURL(file)
+
+}
+
+}
+
+
+function submitProof(){
+
+if(!upload.files[0]){
+
+alert("请上传截图")
+
+return
+
+}
+
+loading.style.display="block"
+
+setTimeout(()=>{
+
+loading.style.display="none"
+
+success.style.display="block"
+
+},2000)
+
+}
+
+
+updateFaceValues()
+
+
+/* 动态粒子背景 */
+
+const canvas=document.getElementById("bg")
+
+const ctx=canvas.getContext("2d")
+
+canvas.width=window.innerWidth
+
+canvas.height=window.innerHeight
+
+let particles=[]
+
+for(let i=0;i<120;i++){
+
+particles.push({
+
+x:Math.random()*canvas.width,
+
+y:Math.random()*canvas.height,
+
+r:Math.random()*2,
+
+dx:(Math.random()-0.5)*0.5,
+
+dy:(Math.random()-0.5)*0.5
+
+})
+
+}
+
+function animate(){
+
+ctx.clearRect(0,0,canvas.width,canvas.height)
+
+particles.forEach(p=>{
+
+ctx.beginPath()
+
+ctx.arc(p.x,p.y,p.r,0,Math.PI*2)
+
+ctx.fillStyle="rgba(0,255,255,0.5)"
+
+ctx.fill()
+
+p.x+=p.dx
+
+p.y+=p.dy
+
+if(p.x<0||p.x>canvas.width)p.dx*=-1
+
+if(p.y<0||p.y>canvas.height)p.dy*=-1
+
+})
+
+requestAnimationFrame(animate)
+
+}
+
+animate()
+
+</script>
+
+</body>
+</html>
